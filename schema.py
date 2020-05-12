@@ -389,19 +389,20 @@ class JSONSchemaObject(object):
         return JSONSchemaObject.JSONSchemaEncoder().encode(self)
 
     @staticmethod
-    def from_json(schema_name:str,json: str):
+    def from_json(schema_name:str,json: object):
         '''
         Deserialize class from json
         '''
-        d = JSONDecoder().decode(json)
+        if isinstance(json, str):
+            json = JSONDecoder().decode(json)
 
-        if isinstance(d, dict):
+        if isinstance(json, dict):
 
             if schema_name in JSONSchemaObject._models_cache:
                 T = JSONSchemaObject._models_cache[schema_name]
-                return T(**d)
+                return T(**json)
 
-            return JSONSchemaObject(schema_name=schema_name,**d)
+            return JSONSchemaObject(schema_name=schema_name,**json)
         
         raise NotImplementedError
 
@@ -820,10 +821,14 @@ class JSONSchemaObject(object):
         '''
         Set an object attribute 
         '''
+        # We might have _attribs in our schema (ie. _id, _version ...)
+        # this allows to access them without the _
+        u_name = "_{}".format(name)
+
         if name in JSONSchemaObject.__internals__:
             # is it an internal attribute? we must use super class
             return super().__setattr__(name,value)
-        if name in self.__dict__["__attrs__"]:
+        elif name in self.__dict__["__attrs__"]:
             
             # Before setting the value do a basic validation
             if not JSONSchemaObject._validate_value(name,self._schema_path,value):
@@ -831,6 +836,15 @@ class JSONSchemaObject(object):
 
             self.__dict__["__attrs__"][name] = value
         
+        elif u_name in self.__dict__["__attrs__"]:
+
+            
+            # Before setting the value do a basic validation
+            if not JSONSchemaObject._validate_value(u_name,self._schema_path,value):
+                raise ValueError("value is not valid")
+
+            self.__dict__["__attrs__"][u_name] = value
+
         elif hasattr(self, name):
             super().__setattr__(name, value)
             
@@ -842,6 +856,10 @@ class JSONSchemaObject(object):
         '''
         Get the object value
         '''
+        # We might have _attribs in our schema (ie. _id, _version ...)
+        # this allows to access them without the _
+        u_name = "_{}".format(name)
+
         if name in JSONSchemaObject.__internals__:
             # is it an internal attribute? we must use super class
             # to return it
@@ -887,6 +905,10 @@ class JSONSchemaObject(object):
         elif name in self.__dict__['__attrs__']:
             # are we asking for an existing attribute?
             return self.__dict__['__attrs__'][name]
+
+        elif u_name in self.__dict__['__attrs__']:
+            # are we asking for an existing attribute?
+            return self.__dict__['__attrs__'][u_name]
 
         # let the supper handle with the rest of it
         return super().__getattribute__(name)

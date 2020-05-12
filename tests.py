@@ -1,6 +1,7 @@
 import unittest
 from schema import JSONSchemaObject, JSONSchemaArray
 from database import DatabaseLayer
+from redisdriver import RedisDriver
 
 schema_user = """
 {
@@ -135,6 +136,14 @@ schema_callback = """
             "description" : "Callback ID",
             "type": "string"
         },
+        "_version": {
+            "description" : "Callback version",
+            "type": "string"
+        },
+        "_name": {
+            "description" : "Callback name",
+            "type": "string"
+        },
         "tags": {
             "description" : "Callback tags",
             "type": "array",
@@ -188,6 +197,14 @@ schema_node = """
             "description" : "Node ID",
             "type": "string"
         },
+        "_version": {
+            "description" : "Node Version",
+            "type": "string"
+        },
+        "_name": {
+            "description" : "Callback name",
+            "type": "string"
+        },        
         "tags": {
             "description" : "Node tags",
             "type": "array",
@@ -697,10 +714,12 @@ class JsonSchemaObjectTests(unittest.TestCase):
         self.assertEqual(node_1.get_color(), "#F0F0F0")
         self.assertEqual(node.to_json(), node_1.to_json())
 
-    def test_rejson(self):
+    def test_database_layer_nulldriver(self):
 
         # Define models by calling the class
         node = Node()
+
+        node.name = "My awsome node"
 
         # Add 1 port
         node.append_port(
@@ -710,6 +729,7 @@ class JsonSchemaObjectTests(unittest.TestCase):
             parameters=[], 
             callback= {
                 "_id" :"",
+                "_name": "my awsome callback",
                 "tags" : [
                     { "name" : "label", "value" : "my awsome callback" }
                 ],
@@ -736,49 +756,16 @@ class JsonSchemaObjectTests(unittest.TestCase):
         self.assertEqual(node.ports[0].protocol, "ros1")
         self.assertEqual(len(node.ports[0].parameters), 0)
 
-        # Append a new node
-        node.append_port(
-            name="port2", direction="out",
-            protocol="ros1", parameters=[
-                {
-                    "name": "rosdata",
-                    "data": {
-                        "message": "movaimsg"
-                    }
-                }
-            ])
+        db = DatabaseLayer(drv=RedisDriver())
+        ids = db.store(node)
 
-        # Checking num of ports
-        self.assertEqual(len(node.ports), 2)
+        node.version = "1.1"
+        ids = db.store(node)
 
-        # print(JSONSchemaObject._relations_map)
+        node_1 = db.find_all_by("node","name","My awsome node","1.1")
 
-        DatabaseLayer.store(node)
+        self.assertEqual(node.to_json(), node_1[0].to_json())
 
-        # print(node.ports[0]._schema_path)
-
-        # # # Create a new client with the our encoder and decoder
-        # rj = Client(
-        #     host='localhost', port=6379, decode_responses=True,
-        #     encoder=JSONSchemaEncoder(), decoder=JSONSchemaDecoder()
-        # )
-
-        # # Store the object in redis
-        # rj.jsonset('nodes/node1', Path.rootPath(), node.to_rejson())
-
-        # # Retrieve it from redis
-        # node_1 = rj.jsonget('nodes/node1', Path.rootPath())
-
-        # self.assertEqual(node.to_json(), node_1.to_json())
-
-        # # Checking num of ports
-        # self.assertEqual(len(node_1.ports), 2)
-
-        # # Checking port content
-        # self.assertEqual(node_1.ports[0].name, "port1")
-        # self.assertEqual(node_1.ports[0].direction, "in")
-        # self.assertEqual(node_1.ports[0].protocol, "ros1")
-        # self.assertEqual(len(node_1.ports[0].parameters), 0)
 
 
 if __name__ == '__main__':
